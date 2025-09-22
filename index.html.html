@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Letters Table</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 10px; }
+    table { border-collapse: collapse; width: 95%; max-width: 1200px; margin: 20px auto; }
+    th, td { border: 1px solid #bbb; padding: 8px; text-align: left; }
+    th { background: #f3f3f3; }
+    .download-btn { background: #28a745; color: white; padding: 6px 10px; text-decoration: none; border-radius: 4px; display: inline-block; }
+    .controls { text-align: center; margin: 12px; }
+    button { padding: 8px 14px; border-radius: 6px; cursor: pointer; background: #2196F3; color: white; border: none; }
+    button:hover { background: #0b7dda; }
+  </style>
+</head>
+<body>
+
+<h2 style="text-align:center;">Letters Table</h2>
+<div id="table-container">Loading table…</div>
+
+<div class="controls">
+  <button onclick="downloadPDF()">Download Table as PDF</button>
+</div>
+
+<!-- Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+  // Google Sheet published CSV link
+  const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSTvGyvrNN6bogkrZOeUtYV0au8cpne3EelYcVmdth79sgZjDUZXfx0Eb7n349Cpd1S_j7DhSIxyIek/pub?output=csv";
+
+  // Fetch CSV and build table
+  fetch(sheetUrl + (sheetUrl.includes('?') ? '&' : '?') + 'cacheBust=' + Date.now())
+    .then(r => r.text())
+    .then(csvText => {
+      const parsed = Papa.parse(csvText.trim());
+      const rows = parsed.data.filter(r => r.length && r.some(c => c !== "")); // remove empty rows
+      renderTable(rows);
+    })
+    .catch(err => {
+      console.error(err);
+      document.getElementById('table-container').innerHTML = '<p style="color:red">Failed to load sheet. Check console for errors.</p>';
+    });
+
+  function renderTable(rows) {
+    if (!rows || rows.length === 0) { document.getElementById('table-container').innerHTML = '<p>No data found.</p>'; return; }
+    const [head, ...body] = rows;
+    const tbl = document.createElement('table');
+    tbl.id = 'dataTable';
+
+    const thead = document.createElement('thead');
+    const thr = document.createElement('tr');
+    head.forEach(h => { const th = document.createElement('th'); th.textContent = h; thr.appendChild(th); });
+    thead.appendChild(thr); tbl.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    body.forEach(row => {
+      const tr = document.createElement('tr');
+      row.forEach((cell, idx) => {
+        const td = document.createElement('td');
+        // last column assumed to be download link
+        if (idx === row.length - 1 && cell && cell.trim().length) {
+          const a = document.createElement('a');
+          a.href = cell;
+          a.target = '_blank';
+          a.className = 'download-btn';
+          a.textContent = 'Download';
+          td.appendChild(a);
+        } else {
+          td.textContent = cell || '';
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+    document.getElementById('table-container').innerHTML = '';
+    document.getElementById('table-container').appendChild(tbl);
+  }
+
+  // PDF export
+  function downloadPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+
+    const table = document.getElementById('dataTable');
+    if (!table) { alert('Table not loaded yet.'); return; }
+
+    const head = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent);
+    const body = Array.from(table.querySelectorAll('tbody tr')).map(tr => {
+      return Array.from(tr.children).map((td, idx, arr) => {
+        if (idx === arr.length - 1) {
+          const a = td.querySelector('a');
+          return a ? a.href : td.textContent;
+        }
+        return td.textContent;
+      });
+    });
+
+    doc.text('Letters Table', 40, 40);
+    doc.autoTable({
+      head: [head],
+      body: body,
+      startY: 60,
+      theme: 'grid',
+      styles: { fontSize: 9 },
+      didDrawCell: function (data) {
+        if (data.column.index === head.length - 1 && data.cell.raw) {
+          const url = String(data.cell.raw || '').trim();
+          if (url) {
+            const x = data.cell.x;
+            const y = data.cell.y;
+            const w = data.cell.width;
+            const h = data.cell.height;
+            doc.link(x, y, w, h, { url: url });
+          }
+        }
+      }
+    });
+
+    doc.save('letters-table.pdf');
+  }
+</script>
+
+</body>
+</html>
