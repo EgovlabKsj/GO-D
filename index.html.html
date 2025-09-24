@@ -6,7 +6,6 @@
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
   <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
     .btn-link {
@@ -30,45 +29,25 @@
   </div>
 
   <script>
-    const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9tvR1ob811Fmx3hnMj-ozUslM2mIFTlxN1ha9qZ55gJatDlYV4depCma-_JtG-ODnOagCZWP3sOXp/pub?gid=0&single=true&output=csv";
+    // Your Apps Script Web App URL
+    const jsonUrl = "https://script.google.com/macros/s/AKfycbx1PRFBzz7QtXQJ3_cYBif5JsQ8xaqfWBecDZPMcSfRY5SJbah5FILKjac-B2X0GZcYmw/exec";
 
-    Papa.parse(csvUrl, {
-      download: true,
-      header: true,
-      complete: function(results) {
-        const data = results.data.filter(row => Object.keys(row).length > 0); // remove empty rows
-        if (!data.length) {
-          console.error("No data loaded from CSV");
-          return;
-        }
+    fetch(jsonUrl)
+      .then(res => res.json())
+      .then(data => {
+        if (!data || !data.length) return;
 
-        const columns = Object.keys(data[0]);
+        const columns = data[0];      // Header row
+        const rows = data.slice(1);   // Data rows
+
+        // Build table header
         const headerRow = $('#sheetTable thead tr');
         columns.forEach(col => headerRow.append(`<th>${col}</th>`));
 
+        // Build table body
         const tbody = $('#sheetTable tbody');
-        data.forEach(row => {
+        rows.forEach(row => {
           let tr = '<tr>';
-          columns.forEach(col => {
-            let val = row[col] || '';
-            if (col.toLowerCase().includes('link') && val.startsWith('http')) {
-              val = `<a class="btn-link" href="${val}" target="_blank" rel="noopener noreferrer">Open File</a>`;
-            }
-            tr += `<td>${val}</td>`;
-          });
-          tr += '</tr>';
-          tbody.append(tr);
-        });
-
-        $('#sheetTable').DataTable({
-          responsive: true,
-          pageLength: 5
-        });
-      },
-      error: function(err) {
-        console.error("CSV load error:", err);
-      }
-    });
-  </script>
-</body>
-</html>
+          row.forEach((cell, i) => {
+            // Column 5 (index 4) clickable if it starts with http
+            if (i === 4 && typeof cell === "string" && cell
